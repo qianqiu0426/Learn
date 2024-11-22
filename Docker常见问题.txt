@@ -1,0 +1,48 @@
+docker拉取镜像失败
+mv /etc/yum.repos.d/* /opt
+wget -O /etc/yum.repos.d/CentOS-Base.repo http://mirrors.aliyun.com/repo/Centos-7.repo
+tee /etc/docker/daemon.json <<-'EOF'
+{
+  "registry-mirrors": [
+  "https://mirror.iscas.ac.cn",
+  "https://docker.rainbond.cc",
+  "https://ccr.ccs.tencentyun.com"
+ ]
+}
+EOF
+systemctl daemon-reload
+systemctl restart docker
+
+--------------------------------------------------------------------------------------------------------------------------------------------------------------
+
+容器yum失败
+https://www.centos.org/keys/RPM-GPG-KEY-CentOS-7
+rpm --import https://www.centos.org/keys/RPM-GPG-KEY-CentOS-7
+mv /etc/yum.repos.d/* /opt
+tee /etc/yum.repos.d/CentOS-Base.repo <<-'EOF'
+	[base]
+name=CentOS-$releasever - Base - mirrors.aliyun.com
+failovermethod=priority
+baseurl=http://mirrors.aliyun.com/centos/$releasever/os/$basearch/
+        http://mirrors.aliyuncs.com/centos/$releasever/os/$basearch/
+        http://mirrors.cloud.aliyuncs.com/centos/$releasever/os/$basearch/
+gpgcheck=1
+gpgkey=http://mirrors.aliyun.com/centos/RPM-GPG-KEY-CentOS-7
+
+#released updates
+[updates]
+name=CentOS-$releasever - Updates - mirrors.aliyun.com
+failovermethod=priority
+baseurl=http://mirrors.aliyun.com/centos/$releasever/updates/$basearch/
+        http://mirrors.aliyuncs.com/centos/$releasever/updates/$basearch/
+        http://mirrors.cloud.aliyuncs.com/centos/$releasever/updates/$basearch/
+gpgcheck=1
+gpgkey=http://mirrors.aliyun.com/centos/RPM-GPG-KEY-CentOS-7
+
+#additional packages that may be useful
+[extras]
+name=CentOS-$releasever - Extras - mirrors.aliyun.com
+failovermethod=priority
+baseurl=http://mirrors.aliyun.com/centos/$releasever/extras/$basearch/
+        http://mirrors.aliyuncs.com/centos/$releasever/extras/$basearch/
+EOF
