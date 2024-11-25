@@ -1,0 +1,14 @@
+docker拉取镜像失败
+mv /etc/yum.repos.d/* /opt
+wget -O /etc/yum.repos.d/CentOS-Base.repo http://mirrors.aliyun.com/repo/Centos-7.repo
+tee /etc/docker/daemon.json <<-'EOF'
+{
+  "registry-mirrors": [
+  "https://mirror.iscas.ac.cn",
+  "https://docker.rainbond.cc",
+  "https://ccr.ccs.tencentyun.com"
+ ]
+}
+EOF
+systemctl daemon-reload
+systemctl restart docker
