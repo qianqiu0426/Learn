@@ -1,3 +1,15 @@
+检查转发功能的启用状态
+[root@localhost ~]# cat /proc/sys/net/ipv4/ip_forward
+	0
+更改
+[root@localhost ~]# vi /etc/sysctl.conf	#插入以下内容
+	net.ipv4.ip_forward = 1
+
+生效一下
+[root@localhost ~]# sysctl -p
+net.ipv4.ip_forward = 1
+
+进入到容器里复制粘贴一下内容
 https://www.centos.org/keys/RPM-GPG-KEY-CentOS-7
 rpm --import https://www.centos.org/keys/RPM-GPG-KEY-CentOS-7
 mv /etc/yum.repos.d/* /opt
