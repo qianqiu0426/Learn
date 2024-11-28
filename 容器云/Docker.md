@@ -135,7 +135,12 @@ yum -y install docker
      ```
 
    - rm
-     `docker rm -rf $ID` <!-- -rf 强制删除不管容器是否开启-->
+     `docker rm -rf $ID` **<!-- -rf 强制删除不管容器是否开启-->**
+     扩展：删除所有容器
+     `docker container prune -f` **<!--删除所有停止的容器-->**
+     `docker rm -f $(docker ps -aq)` **<!--停止并删除所有正在运行的容器-->**
+
+     ​	解释： `docker ps -ap` **<!--列出所有容器的ID，包括正在运行和已停止的容器-->**
 
 
 
@@ -145,7 +150,7 @@ yum -y install docker
    ==**创建一个安装好apache工具的容器镜像**==
 
    ​	[解决容器无法使用yum](Docker常见问题/容器yum失败.txt)
-   
+
    ```shell
    #根据容器当前状态做一个image镜像：创建一个安装了apache工具的centos镜像
    	语法:docker commit <container$ID>/<image_name$ID> $name:$tag
@@ -156,7 +161,7 @@ yum -y install docker
    #查看已经安装好的apache命令
    	rpm -qa httpd
    ```
-   
+
  - 方法二
 
    ==**创建一个基于centos的httpd web服务器镜像**==
@@ -221,7 +226,7 @@ yum -y install docker
     
 
     ​	==**EG：使用导入本地镜像**==
-    
+
     ```shell
     # 删除镜像，这里写自己镜像的ID或名字
     docker rmi docker.io/centos:httpd
@@ -301,6 +306,8 @@ yum -y install docker
 
 #### 	2.3 容器CPU资源配额控制
 
+##### 	2.3.1 容器资源配额控制
+
 ​	==**给容器实例分配512权重的cpu使用份额**==
 
 ​	参数：`--cpu-shares 512`
@@ -312,7 +319,7 @@ docker run -it --cpu-shares 512 centos /bin/bash
 cat /sys/fs/cgroup/cpu/cpu.shares
 ```
 
-#### 	2.4 CPU周期控制
+##### 	2.3.2 CPU周期控制
 
 ​	==**指定周期**==
 
@@ -326,7 +333,7 @@ cat /sys/fs/cgroup/cpu/cpu.shares
 ​	==**查看**==
 ​		`cat /sys/fs/cgroup/cpu/cpu.cfs_period_us`
 
-#### 	2.5 CPU core 核心控制
+##### 	2.3.3 CPU core 核心控制
 
 ​	`--cpuset` <!--绑定CPU-->
 
@@ -339,7 +346,7 @@ cat /sys/fs/cgroup/cpu/cpu.shares
 - MPP
   海量并行处理结构 EG：大型机
 
-#### 	2.6 CPU亲和力
+##### 	2.3.4CPU亲和力
 
 ​	taskset设定cpu亲和力，能够将一个或多个进程绑定到一个或多个处理器上运行。
 
@@ -392,7 +399,7 @@ cat /sys/fs/cgroup/cpuset/cpuset.cpus
 taskset -cp 1
    ```
 
-#### 	2.7 CPU配额控制参数
+##### 	2.3.5 CPU配额控制参数
 
 > ==**Stree命令**==
 >
@@ -409,7 +416,7 @@ taskset -cp 1
 >   yun install stress -y
 >   ```
 >
->   
+> 
 >
 > - 方法二：
 >
@@ -421,12 +428,12 @@ taskset -cp 1
 >   ./configure
 >   make -j 4
 >   make install 
->         
+>   
 >   EG:产生2个cpu进程，2个io进程，20秒后停止运行
 >   stress -c 2 -i 2 --verbose --timeout 20s '改为分钟1m'
 >   ```
 
-#### 	2.8 测试cpuset-cpus 和 cpu-shares 混合使用运行效果
+##### 	2.3.6 测试cpuset-cpus 和 cpu-shares 混合使用运行效果
 
 > ​	==**创建两个容器实例**==
 >
@@ -441,7 +448,7 @@ taskset -cp 1
 >    docker exec -it docker10 /bin/bash
 >    yum install -y epel-release
 >    yum install stress -y
->    
+>   
 >    # 在物理机上使用 top 按 1 快捷键查看，每个 cpu 使用情况：
 >   ```
 >
@@ -452,8 +459,88 @@ taskset -cp 1
 >    yum install -y epel-release
 >    yum install stress -y
 >    stree -c 2 -v -t 10m
->          
+>   
 >    # 在物理机上使用 top 按 1 快捷键查看，每个 cpu 使用情况：
 >   ```
 >
 >   注：<!--两个容器只在cpu0,1上运行。且docker20是docker10使用cpu的2倍。说明限制资源成功。-->
+
+##### 2.3.7 当容器命令运行结束后，自动删除容器
+
+> `--rm`当容器命令运行结束后，自动删除容器，自动释放资源
+>
+> ==**作用:**== 当容器命令运行结束后，自动删除容器。
+>
+> ==**应用场景：**== 在某些环境下，可能需要大量的新建 docker 实例，然后仅仅运行几秒钟，然后就彻底删除。如运行单元测试或测试弹性云计算。
+>
+> Eg：阿里云，要模拟双11的压力，需要快速创建1万实例，运行 ab 命令，拼命访问 tmall.com 首页，运行1个小时，1小时后自动删除。
+>
+> ```shell
+> docekr run -it --rm --name mk $image sleep 5
+> docker ps | grep mk 
+> # 5秒后查看 自动删除
+> ```
+
+#### 2.4 容器内存资源配额控制
+
+参数：`-m` ,`--memory=""`限制容器的内存使用量
+
+EG：允许容器使用的内存上限为 128 M：
+
+```shell
+docker run -it -m 128m centos
+
+# 查看
+cat /sys/fs/cgroup/memory/memory.limit_in_bytes
+	134217728
+"注：也可以使用 tress 进行测试 也可以使用 | awk '{print $1/1024/1024 "MB"}' 进行单位换算"
+```
+
+#### 2.5 容器IO资源配额控制
+
+`--device-write-bps value`	**<!--限制此设备上的写速度，单位可以是kb、mb或者gb-->**
+
+`--device-read-bps value`	 **<!--限制此设备上的读速度，单位可以是kb、mb或者gb-->**
+
+情景：防止某个 Docker 容器吃光你的磁盘 I/O 资源
+
+​	EG：容器对磁盘的最高写入速度设定为 1MB/s。
+
+​	`--device` 参数：将主机设备添加到容器
+
+```shell
+docekr run -it -v /var/www/html/:/var/www/html --device /dev/sda:/dev/sda --device-write-bps /dev/sda:1mb $image /bin/bash
+
+time dd if=/dev/sda of=/var/www/html/test.out bs=1M count=50 oflag=direct,nonblock
+```
+
+**<!-- 
+	dd 参数：
+	direct：读写数据采用直接 IO 方式；
+	nonblock：读写数据采用非阻塞 IO 方式
+-->**
+
+​	**<font color= 'Apricot'>查看结果：</font>**
+
+```shell
+ll -h var/www/html/
+```
+
+**<!--发现1秒写1M。限制成功-->**
+
+#### 2.6 docker 数据映射
+
+语法：`docker run -itd -v /src:/dst centos bash`	
+**<!-- -v 用来指定挂载目录 ”:“前面的/src为物理机本地目录，后面的/dst为容器里的目录 -->**
+EG：把物理机上的/var/www/html 映射到 docker 实例的/var/www/html。
+好处：当 docker 坏了，数据还在物理机上，再使用 apache 镜像启动一个 docker 就可以了。数据不丢失。
+
+```shell
+mkdir -p /var/www/html 
+doceker run -it --name web1 -v /var/www/html/:/var/www/html $image bash
+touch /var/www/html/index.html
+
+# 物理机查看
+ls /var/www/html
+```
+
