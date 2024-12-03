@@ -1,3 +1,5 @@
+
+
 # Docker
 
 ## 1.部署docker容器虚拟化平台
@@ -118,8 +120,6 @@ yum -y install docker
 
 - kill
   `docker kill $ID`
-
-
 
    - 启动、停止、重启 container容器实例
 
@@ -509,7 +509,7 @@ cat /sys/fs/cgroup/memory/memory.limit_in_bytes
 ​	`--device` 参数：将主机设备添加到容器
 
 ```shell
-docekr run -it -v /var/www/html/:/var/www/html --device /dev/sda:/dev/sda --device-write-bps /dev/sda:1mb $image /bin/bash
+docker run -it -v /var/www/html/:/var/www/html --device /dev/sda:/dev/sda --device-write-bps /dev/sda:1mb $image /bin/bash
 
 time dd if=/dev/sda of=/var/www/html/test.out bs=1M count=50 oflag=direct,nonblock
 ```
@@ -541,6 +541,159 @@ doceker run -it --name web1 -v /var/www/html/:/var/www/html $image bash
 touch /var/www/html/index.html
 
 # 物理机查看
-ls /var/www/html
+ls /var/www/html/
+```
+
+## 3. 配置docker静态IP地址-配置docker私有仓库
+
+#### 3.1创建docker静态化IP
+
+##### 	3.1.1 配置桥接网络
+
+​	安装：`rpm -ivh /mnt/Packages/bridge-utils-1.5-9.el7.x86_64.rpm`
+
+```shell
+# 把 eth0 绑到 br0 桥设备上
+vi /etc/sysconfig/network-scripts/ifcfg-ens32
+# 删除以下内容
+	IPADDR="192.168.100.50"
+	PREFIX="24"
+	GATEWAY="192.168.1.1"
+	DNS1="8.8.8.8"
+# 插入
+	BRIDGE="br0"
+
+# 生成桥设备 br0 的配置文件
+vi /etc/sysconfig/network-scripts/ifcfg-br0
+	DEVICE="br0"
+	NM_CONTROLLED="yes"
+	ONBOOT="yes"
+	TYPE="Bridge"
+	BOOTPROTO=none
+	IPADDR=192.168.100.60
+	NETMASK=255.255.255.0
+	GATEWAY=192.168.100.1
+	DNS1=8.8.8.8
+
+# 重启服务
+service network restart
+```
+
+##### 3.1.2 下载 pipework 包
+
+​	上传压缩包：
+​	[pipework-master.zip](压缩包\pipework-master.zip)
+​	[centos-latest-docker-image.tar](压缩包/centos-latest-docker-image.tar)
+
+```shell
+unzip pipework-master.zip
+cp /root/pipework-master/pipework /usr/local/bin/ "方便后期使用 pipework 命令"
+
+# 上传镜像到Linux,并导入docker平台
+docker load -i centos-latest-docker-image.tar
+```
+
+##### 3.1.3 使用静态 IP 启动一个 docker 实例
+
+`--privileged=true`	**<!--允许开启特权模式-->**
+
+```shell
+给容器配置地址
+`pipework $网桥名 $实例ID $IP/掩码@网关`
+
+# 安装 ifconfig 命令
+yum install -y net-tools
+
+# 查看网路路由情况
+route -n
+```
+
+##### 3.1.4 使用静态 IP 启动一个 web 服务器
+
+```shell
+# 进入到容器
+yum install httpd -y
+
+# 直接运行 httpd 命令
+httpd
+
+neststat -antup | grep 80 "发现80已经监听"
+cd /var/www/html/
+echo aaaaa > index.html
+```
+
+#### 3.2 创建 docker 私有化仓库
+
+**实验环境**
+
+|        | docker 私有仓库地址 | docker 服务器地址 |
+| :----: | :-----------------: | :---------------: |
+| 用户名 |      Docker1-1      |     Docker1-2     |
+|   IP   |   192.168.100.50    |  192.168.100.60   |
+
+##### 3.2.1  配置 Docker1-1 为 docker 私有仓库
+
+```shell
+# 不能关闭防火墙，因为 docker 后期端口转发，需要使用 firewalld
+systemctl start firewalld.service
+
+# 关闭 selinux
+vim /etc/sysconfig/selinux
+改：SELINUX = enforcing
+为：SELINUX = disabled
+```
+
+##### 3.2.2 配置 Docker1-1 私有仓库服务端
+
+扩展：[BusyBox 概述](资料/BusyBox概述.docx)
+
+上传压缩包：	
+[registry.tar](压缩包\registry.tar)
+[nusybox.tar](压缩包\busybox.tar)
+
+```shell
+# 启动docker 
+systemctl start docker
+
+# 拉取 registry 镜像
+docker load -i registry.tar
+
+# 拉取 busybox 镜像
+docker load -i busybox.tar
+```
+
+3.2.3 修改 docker 配置文件，指定私有仓库 url
+`registry`	记录，登记，注册
+
+```shell
+# 查看是否有 docker-common 包
+rpm -qf /etc/sysconfig/docker 
+
+vi /etc/sysconfig/docker
+改：4 OPTIONS='--selinux-enabled --log-driver=journald --signature-verification=false'
+为：OPTIONS='--selinux-enabled --log-driver=journald --signature-verification=false --insecure-registry 192.168.1.63:5000'
+
+# 重启服务
+systemctl restart docker 
+
+# 推出镜像
+docker push 192.168.100.50:5000/busybox
+```
+
+3.2.4 使用 registry 镜像搭建一个私有仓库
+
+使用 `-v` 参数，指定本地持久的路径
+
+`docker run -d -p 5000:5000 -v /opt/registry:/var/lib/registry registry`
+
+![f8ffff7ca91e457c3911fa99dcab6b4b](assets/f8ffff7ca91e457c3911fa99dcab6b4b.png)
+说明，私有库已经启动成功
+
+```shell
+# 将刚打好标签的镜像，push到本地私有仓库中。
+docker push 192.168.100.50:5000/busybox	"镜像前面一定要加上私有仓库的IP地址否则会自动匹配到dockhub中"
+
+# 查看镜像的存储目录和文件 
+rpm -ivh /mnt/Packages/tree-
 ```
 
